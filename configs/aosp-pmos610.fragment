@@ -1,0 +1,23 @@
+# AOSP-enabling delta for the PROVEN-booting pmOS kernel
+# -------------------------------------------------------
+# 目标基座（用户实测能在 apollo 开机、触摸显示正常的那颗）:
+#   source : https://gitlab.com/sm8250-mainline/linux
+#   ref    : tag sm8250-6.11.0   (kernel 6.11.0, 分支 sm8250/v6.11)
+#   config : pmaports → linux-postmarketos-qcom-sm8250 → config-postmarketos-qcom-sm8250.aarch64
+#   dtb    : qcom/sm8250 (deviceinfo_dtb="qcom/sm8250", append_dtb)
+#
+# 已核对 base config 中已开启（无需再加）:
+#   CONFIG_ANDROID_BINDER_IPC=y / CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
+#   CONFIG_DMABUF_HEAPS=y / CONFIG_DMABUF_HEAPS_CMA=y
+#   CONFIG_PSI=y / CONFIG_DEVTMPFS=y / CONFIG_MEMCG=y / CONFIG_IKCONFIG=y / CONFIG_DRM_MSM=y
+#
+# 本片段仅补齐 base 缺失、且 AOSP 引导硬性需要的最小集:
+CONFIG_ANDROID_BINDERFS=y          # Android init 挂载 binderfs（缺则 init 无法创建设备节点的子节点）
+CONFIG_DMABUF_HEAPS_SYSTEM=y       # gralloc / SurfaceFlinger 渲染必需的系统堆（Base 只有 CMA）
+# 以下为可选的启动调试/健壮性增强:
+CONFIG_ANDROID=y                   # 顶层 Android 伞开关（含 legacy，不影响 binder）
+CONFIG_PSTORE=y                    # ramoops 崩溃/启动日志
+CONFIG_PSTORE_RAM=y
+CONFIG_PSTORE_CONSOLE=y
+CONFIG_PSTORE_PMSG=y
+CONFIG_MAGIC_SYSRQ=y

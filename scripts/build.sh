@@ -15,8 +15,10 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 KERNEL_DIR="${KERNEL_DIR:-kernel}"
 O_DIR="${O_DIR:-out}"
-DTB_NAME="${DTB_NAME:-qcom/sm8250-xiaomi-apollo.dtb}"
+DTB_NAME="${DTB_NAME:-qcom/sm8250}"
 DEFCONFIG="${DEFCONFIG:-}"
+# 可选：直接以 pmOS 已验证 config 文件作基座（比 defconfig 更能保持"能开机"的配置）
+PMOS_CONFIG="${PMOS_CONFIG:-}"
 
 export ARCH="${ARCH:-arm64}"
 export CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
@@ -34,19 +36,23 @@ echo "[build] 拉取/更新 base 内核"
 "$SCRIPT_DIR/fetch-base.sh"
 cd "$KERNEL_DIR"
 
-# 合成 defconfig：优先用 base 自带 qcom 配置，否则用通用 defconfig
-if [ -z "$DEFCONFIG" ]; then
+# 基座配置：优先用 pmOS 已验证 config 文件，否则用 base 自带 qcom/defconfig
+if [ -n "$PMOS_CONFIG" ]; then
+  echo "[build] 以 pmOS 已验证 config 作基座: $PMOS_CONFIG"
+  rm -rf "$O_DIR"; mkdir -p "$O_DIR"
+  cp "$PMOS_CONFIG" "$O_DIR/.config"
+  make O="$O_DIR" olddefconfig
+elif [ -z "$DEFCONFIG" ]; then
   if [ -f arch/${ARCH}/configs/qcom_defconfig ]; then
     DEFCONFIG=qcom_defconfig
   else
     DEFCONFIG=defconfig
   fi
+  echo "[build] DEFCONFIG=${DEFCONFIG}"
+  make O="$O_DIR" "$DEFCONFIG"
 fi
-echo "[build] DEFCONFIG=${DEFCONFIG}"
-
-make O="$O_DIR" "$DEFCONFIG"
-echo "[build] 合入 Android 配置片段"
-scripts/kconfig/merge_config.sh -O "$O_DIR" "$O_DIR/.config" "$ROOT_DIR/configs/android.fragment"
+echo "[build] 合入 AOSP 必要配置片段"
+scripts/kconfig/merge_config.sh -O "$O_DIR" "$O_DIR/.config" "$ROOT_DIR/configs/aosp-pmos610.fragment"
 echo "[build] 规范化配置"
 make O="$O_DIR" savedefconfig
 

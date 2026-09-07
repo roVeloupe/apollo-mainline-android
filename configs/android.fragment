@@ -23,9 +23,10 @@ CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
 
 # ---- DMA-BUF heaps（新版 AOSP 的物理连续/系统堆）----
 CONFIG_DMABUF_HEAPS=y
-CONFIG_DMABUF_SYSTEM_HEAP=y
+CONFIG_DMABUF_HEAPS_SYSTEM=y
 CONFIG_DMABUF_HEAPS_CMA=y
-# 5.10 旧内核若仍用 deprecated ION/camera heap：
+# 注意：合法符号是 CONFIG_DMABUF_HEAPS_SYSTEM；早期我误用 CONFIG_DMABUF_SYSTEM_HEAP(不存在)，
+#       已被修正。5.10 旧内核若仍用 deprecated ION/camera heap：
 # CONFIG_ION=y
 
 # ---- 设备节点 / cgroup / 内存控制（Android init 与调度强依赖）----
