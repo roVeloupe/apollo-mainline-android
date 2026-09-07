@@ -8,3 +8,5 @@ unpacked_boot/
 dist/
 *.o
 *.cmd
+__pycache__/
+*.pyc
