@@ -1,0 +1,10 @@
+# 忽略构建产物与本地内核源码
+/kernel/
+/out/
+/out_*/
+mainline-boot.img
+boot*.img
+unpacked_boot/
+dist/
+*.o
+*.cmd

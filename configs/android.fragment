@@ -1,0 +1,52 @@
+# android.fragment
+#
+# Linux 内核 "Android 化" 配置片段（R 路线 · M1 冒烟测试）
+#
+# 用法（在 kernel 源码目录内）:
+#   export ARCH=arm64
+#   make O=out <defconfig或 qcom_defconfig>
+#   scripts/kconfig/merge_config.sh -O out \
+#       out/.config ../configs/android.fragment
+#   make O=out savedefconfig
+#   make O=out Image dtbs
+#
+# 目标版本建议: base 内核优先用你的 pmOS 能开机的源码（6.x/7.x 均可）。
+# 产物只适用于 "mainline Image + DT + Android ramdisk" 的冒烟验证，
+# 不含 vendor_boot/GKI 打包。不能编译通过的符号（如较新/较旧内核没有）应保留为注释并在
+# merge_config 后通过 Kconfig 交互或 scripts/config 单独处理。
+
+# ---- Android framework 绑定驱动（AOSP 引导必需）----
+CONFIG_ANDROID=y
+CONFIG_ANDROID_BINDER_IPC=y
+CONFIG_ANDROID_BINDERFS=y
+CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
+
+# ---- DMA-BUF heaps（新版 AOSP 的物理连续/系统堆）----
+CONFIG_DMABUF_HEAPS=y
+CONFIG_DMABUF_SYSTEM_HEAP=y
+CONFIG_DMABUF_HEAPS_CMA=y
+# 5.10 旧内核若仍用 deprecated ION/camera heap：
+# CONFIG_ION=y
+
+# ---- 设备节点 / cgroup / 内存控制（Android init 与调度强依赖）----
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+CONFIG_CGROUPS=y
+CONFIG_MEMCG=y
+CONFIG_MEMCG_KMEM=y
+CONFIG_PSI=y                  # Android 11+ 依赖内存压力信息
+
+# ---- SELinux（首轮可 permissive，跑通后再收紧）----
+CONFIG_SECURITY_SELINUX=y
+CONFIG_SECURITY_SELINUX_DEVELOP=y   # 允许 boot args: selinux=permissive / androidboot.selinux=permissive
+CONFIG_SECURITY_SELINUX_BOOTPARAM=y
+
+# ---- 杂项（AOSP 常用）----
+CONFIG_ANON_INODES=y
+CONFIG_MULTIUSER=y
+CONFIG_ADVISE_SYSCALLS=y
+CONFIG_HZ=300
+CONFIG_HIGH_RES_TIMERS=y
+CONFIG_RANDOMIZE_BASE=y          # KASLR，AOSP 建议开启
+CONFIG_NET_NS=y                  # Android 网络空间需要
+CONFIG_MEMBARRIER=y

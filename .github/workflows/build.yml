@@ -1,0 +1,64 @@
+name: build-m1-bootimg
+
+# R 路线 M1：手动触发构建 mainline boot.img。
+# 重要：base 内核必须是"在 apollo 上实测能开机点亮触摸"的 pmOS/mainline 源码。
+#       在下方 inputs 里填 BASE_KERNEL / BASE_REF；仓库默认值是占位，会构建失败。
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_kernel:
+        description: 'base 内核源码 URL (你实测能开机的)'
+        required: true
+        default: 'https://github.com/sm8250-mainline/linux'
+      base_ref:
+        description: 'base 内核分支/标签'
+        required: true
+        default: 'sm8250'
+      dtb_name:
+        description: 'apollo 设备树相对路径 (arch/arm64/boot/dts/ 下)'
+        required: true
+        default: 'qcom/sm8250-xiaomi-apollo.dtb'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      BASE_KERNEL: ${{ github.event.inputs.base_kernel }}
+      BASE_REF: ${{ github.event.inputs.base_ref }}
+      DTB_NAME: ${{ github.event.inputs.dtb_name }}
+      FORCE_GCC: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装工具链
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            flex bison libssl-dev libncurses-dev bc cpio \
+            android-tools-mkbootimg android-tools-unpackbootimg
+          mkdir -p dist
+
+      - name: 拉取 base 内核
+        run: ./scripts/fetch-base.sh
+
+      - name: 合入 Android 配置并编译 Image + DTB
+        run: |
+          ./scripts/build.sh
+          # 收集产物
+          cp kernel/out/arch/arm64/boot/Image dist/ 2>/dev/null || echo "无 Image"
+          find kernel/out/arch/arm64/boot/dts -name "*.dtb" -path "*qcom*" -exec cp {} dist/ \; 2>/dev/null || true
+
+      - name: 列出产物
+        run: ls -lR dist || true
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollo-mainline-build
+          path: dist
+          if-no-files-found: warn
