@@ -1,0 +1,73 @@
+name: prep-prebuilt-bootimg
+
+# R 路线 M1 · 预编译优先：
+# 输入官方 pmOS 7.1 的 boot.img + 一份 Android/Lineage ramdisk，
+# 自动解包 -> 判定 Android 就绪度 -> 切出 dtb -> 组装 AOSP boot.img 产物。
+# 不需要设备，跑完在 Artifacts 里拿 mainline-boot.img 去 fastboot boot。
+
+on:
+  workflow_dispatch:
+    inputs:
+      pmos_bootimg_url:
+        description: '官方 pmOS 7.1 boot.img 直链/下载 URL'
+        required: true
+      ramdisk_url:
+        description: 'Android/Lineage ramdisk (initramfs-LineageOS-*.img.gz) 直链/下载 URL'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  prep:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装工具
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            android-tools-unpackbootimg android-tools-mkbootimg curl cpio zstd
+
+      - name: 下载官方 pmOS boot.img 与 Android ramdisk
+        run: |
+          mkdir -p input dist
+          curl -L --fail --retry 3 -o input/pmos-boot.img "${{ github.event.inputs.pmos_bootimg_url }}"
+          curl -L --fail --retry 3 -o input/android.ramdisk.gz "${{ github.event.inputs.ramdisk_url }}"
+          ls -lh input/
+
+      - name: 解包 + 判定 Android 就绪度 + 切分 DTB
+        run: |
+          mkdir -p input/unpacked
+          unpackbootimg -i input/pmos-boot.img -o input/unpacked || true
+          ls -la input/unpacked || true
+          # 找内核产物
+          K=$(ls input/unpacked/*kernel* input/unpacked/*zImage* 2>/dev/null | head -1)
+          echo "KERNEL_IMAGE=$K"
+          if [ -n "$K" ]; then
+            ./scripts/check-android-config.sh "$K" || true
+            ./scripts/split-appended-dtb.py "$K" dist || true
+            cp "$K" dist/ 2>/dev/null || true
+          fi
+
+      - name: 组装 AOSP boot.img
+        run: |
+          KERNEL_IMAGE="$(ls dist/*kernel* dist/*Image* input/unpacked/*kernel* 2>/dev/null | head -1 || true)"
+          DTB_FILE="$(ls dist/*.dtb 2>/dev/null | head -1 || true)"
+          echo "KERNEL_IMAGE=$KERNEL_IMAGE DTB_FILE=$DTB_FILE"
+          set +e
+          IMAGE="$KERNEL_IMAGE" \
+          RAMDISK="$GITHUB_WORKSPACE/input/android.ramdisk.gz" \
+          DTB="$DTB_FILE" \
+          OUT="dist/mainline-boot.img" \
+          ./scripts/assemble-bootimg.sh
+          set -e
+          ls -l dist/ || true
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollo-m1-bootimg
+          path: dist
+          if-no-files-found: warn
